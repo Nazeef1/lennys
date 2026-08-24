@@ -10,10 +10,10 @@ class Settings(BaseSettings):
     OPENAI_API_KEY: str = ""
     OLLAMA_BASE_URL: str = "http://localhost:11434"
     OLLAMA_MODEL: str = "llama3.2"
-    DEFAULT_PROVIDER: str = "ollama"  # ollama, anthropic, openai, fallback
+    DEFAULT_PROVIDER: str = "fallback"  # ollama, anthropic, openai, fallback
     
-    # Database
-    DATABASE_URL: str = "sqlite:///./lenny_assistant.db"
+    # Database (Use /tmp for Vercel/serverless writable SQLite)
+    DATABASE_URL: str = os.getenv("DATABASE_URL", "sqlite:////tmp/lenny_assistant.db" if os.getenv("VERCEL") else "sqlite:///./lenny_assistant.db")
     
     # Paths
     BASE_DIR: str = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
