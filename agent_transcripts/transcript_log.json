@@ -1,0 +1,67 @@
+[
+  {
+    "step": 1,
+    "timestamp": "2026-08-24T11:32:00Z",
+    "action": "Discovery & Knowledge Base Download",
+    "tool_used": "data/fetch_transcripts.py",
+    "intent": "Ingest Lenny's Podcast and Newsletter dataset from LennysNewsletter/lennys-newsletterpodcastdata",
+    "status": "SUCCESS",
+    "output_summary": "Downloaded and indexed 25 transcript and newsletter files into data/transcripts/",
+    "notes": "Parsed index.json metadata (title, guest, date, post_url)."
+  },
+  {
+    "step": 2,
+    "timestamp": "2026-08-24T11:34:00Z",
+    "action": "Backend Database & ORM Model Setup",
+    "target_files": ["backend/app/db/models.py", "backend/app/db/database.py"],
+    "status": "SUCCESS",
+    "output_summary": "Configured SQLAlchemy models for SessionModel, MessageModel, ArtifactModel supporting SQLite and PostgreSQL fallback.",
+    "notes": "Ensured schema matches ER diagram specification."
+  },
+  {
+    "step": 3,
+    "timestamp": "2026-08-24T11:35:00Z",
+    "action": "RAG Hybrid Retrieval Engine Construction",
+    "target_files": ["backend/app/rag/engine.py"],
+    "status": "SUCCESS",
+    "output_summary": "Implemented semantic paragraph chunking (700 chars window, 150 overlap) and TF-IDF vector matrix scoring with ground-truth citations.",
+    "notes": "Includes frontmatter YAML parser."
+  },
+  {
+    "step": 4,
+    "timestamp": "2026-08-24T11:36:00Z",
+    "action": "Dynamic LLM Provider Switcher & Resilience Fallback",
+    "target_files": ["backend/app/llm/provider.py"],
+    "status": "SUCCESS",
+    "output_summary": "Created ProviderRegistry supporting Ollama (Local), Anthropic Claude 3.5 Sonnet, OpenAI GPT-4o, and Fallback Mock provider.",
+    "notes": "Enables seamless model toggling without code changes."
+  },
+  {
+    "step": 5,
+    "timestamp": "2026-08-24T11:38:00Z",
+    "action": "Ship 30 for 30 Content Skill Development",
+    "target_files": ["backend/app/skills/ship30for30.py"],
+    "status": "SUCCESS",
+    "output_summary": "Encoded Ship 30 for 30 writing rules: ~1,250 words, hook, narrative arc, 4-pillar framework, 5-step checklist, and grounded citations.",
+    "notes": "Structured for high skimmability with headers and bullet points."
+  },
+  {
+    "step": 6,
+    "timestamp": "2026-08-24T11:40:00Z",
+    "action": "Frontend Interactive Sandboxed Artifact Viewer & UI",
+    "target_files": ["frontend/src/App.jsx", "frontend/src/components/ArtifactViewer.jsx", "frontend/src/components/ChatInterface.jsx"],
+    "status": "SUCCESS",
+    "output_summary": "Built React Vite frontend with split-pane layout, model selector dropdown, citation accordions, and iframe sandboxed artifact viewer (sandbox='allow-scripts').",
+    "notes": "Enforces strict security isolation for HTML rendering."
+  },
+  {
+    "step": 7,
+    "timestamp": "2026-08-24T11:42:00Z",
+    "action": "Automated Unit Testing & Database Fix",
+    "tool_used": "pytest tests/",
+    "status": "RESOLVED_ATTEMPT",
+    "failed_attempt_details": "Initial API test failed due to uninitialized SQLite table schema in test client runner.",
+    "resolution": "Added init_db() call to test setup fixture in tests/test_api.py. All 7 unit tests passed cleanly.",
+    "notes": "Verified 100% test suite pass rate."
+  }
+]

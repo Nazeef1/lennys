@@ -1,0 +1,23 @@
+# Dependencies
+node_modules/
+frontend/node_modules/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Databases & Vector Index
+*.db
+*.sqlite
+data/vector_db/
+
+# Environment Variables & Secrets
+.env
+.env.local
+
+# Build outputs
+frontend/dist/
+
+# IDE & System files
+.vscode/
+.idea/
+.DS_Store
