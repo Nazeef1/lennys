@@ -1,12 +1,11 @@
 import os
 import re
+import math
 import json
 import logging
+from collections import Counter
 from typing import List, Dict, Any, Optional
-from dataclasses import dataclass, asdict
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.metrics.pairwise import cosine_similarity
-import numpy as np
+from dataclasses import dataclass
 
 from backend.app.config import settings
 
@@ -27,8 +26,8 @@ class RAGEngine:
     def __init__(self, transcript_dir: Optional[str] = None):
         self.transcript_dir = transcript_dir or settings.TRANSCRIPT_DIR
         self.chunks: List[Dict[str, Any]] = []
-        self.vectorizer: Optional[TfidfVectorizer] = None
-        self.tfidf_matrix = None
+        self.doc_tokens: List[List[str]] = []
+        self.df: Counter = Counter()
         self.is_indexed = False
 
     def parse_markdown_file(self, file_path: str) -> Optional[Dict[str, Any]]:
@@ -74,7 +73,6 @@ class RAGEngine:
         filename = document["filename"]
         metadata = document["metadata"]
 
-        # Split into paragraphs first
         paragraphs = re.split(r'\n\s*\n', body)
         current_chunk = ""
         chunk_idx = 0
@@ -98,7 +96,6 @@ class RAGEngine:
                         "content": current_chunk.strip()
                     })
                     chunk_idx += 1
-                # Handle paragraph larger than chunk size
                 if len(para) > chunk_size:
                     for i in range(0, len(para), chunk_size - overlap):
                         sub_para = para[i:i + chunk_size]
@@ -129,8 +126,11 @@ class RAGEngine:
 
         return doc_chunks
 
+    def tokenize(self, text: str) -> List[str]:
+        return re.findall(r'\w+', text.lower())
+
     def build_index(self) -> int:
-        if self.is_indexed and self.chunks and self.tfidf_matrix is not None:
+        if self.is_indexed and self.chunks:
             return len(self.chunks)
 
         if not os.path.exists(self.transcript_dir):
@@ -155,28 +155,61 @@ class RAGEngine:
             logger.warning("No chunks generated from transcripts.")
             return 0
 
-        corpus = [c["content"] for c in self.chunks]
-        self.vectorizer = TfidfVectorizer(stop_words="english", ngram_range=(1, 2))
-        self.tfidf_matrix = self.vectorizer.fit_transform(corpus)
+        # Build pure Python TF-IDF term statistics
+        self.doc_tokens = [self.tokenize(c["content"]) for c in self.chunks]
+        self.df = Counter()
+        for tokens in self.doc_tokens:
+            for term in set(tokens):
+                self.df[term] += 1
+
         self.is_indexed = True
         logger.info(f"Indexed {len(self.chunks)} transcript chunks across {len(files)} files.")
         return len(self.chunks)
 
     def search(self, query: str, top_k: int = 5) -> List[ChunkResult]:
-        if not self.is_indexed or not self.vectorizer or self.tfidf_matrix is None:
+        if not self.is_indexed or not self.chunks:
             self.build_index()
 
-        if not self.chunks or self.tfidf_matrix is None:
+        if not self.chunks:
             return []
 
-        query_vec = self.vectorizer.transform([query])
-        similarities = cosine_similarity(query_vec, self.tfidf_matrix).flatten()
+        query_tokens = self.tokenize(query)
+        if not query_tokens:
+            return []
 
-        top_indices = np.argsort(similarities)[::-1][:top_k]
+        q_tf = Counter(query_tokens)
+        N = len(self.chunks)
+
+        scores = []
+        for idx, d_tokens in enumerate(self.doc_tokens):
+            d_tf = Counter(d_tokens)
+            dot_product = 0.0
+            q_norm = 0.0
+            d_norm = 0.0
+
+            for term, q_count in q_tf.items():
+                if term in self.df:
+                    idf = math.log((N + 1) / (self.df[term] + 1)) + 1.0
+                    q_val = q_count * idf
+                    d_val = d_tf.get(term, 0) * idf
+                    dot_product += q_val * d_val
+                    q_norm += q_val ** 2
+
+            for term, d_count in d_tf.items():
+                if term in self.df:
+                    idf = math.log((N + 1) / (self.df[term] + 1)) + 1.0
+                    d_norm += (d_count * idf) ** 2
+
+            q_norm = math.sqrt(q_norm)
+            d_norm = math.sqrt(d_norm)
+
+            score = (dot_product / (q_norm * d_norm)) if (q_norm > 0 and d_norm > 0) else 0.0
+            scores.append((score, idx))
+
+        scores.sort(key=lambda x: x[0], reverse=True)
         results = []
 
-        for idx in top_indices:
-            score = float(similarities[idx])
+        for score, idx in scores[:top_k]:
             if score > 0.01:
                 item = self.chunks[idx]
                 results.append(ChunkResult(
@@ -187,7 +220,7 @@ class RAGEngine:
                     date=item["date"],
                     post_url=item["post_url"],
                     content=item["content"],
-                    score=score
+                    score=round(score, 3)
                 ))
 
         return results
