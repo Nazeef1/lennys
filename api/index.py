@@ -1,12 +1,20 @@
 import sys
 import os
+import traceback
 
-# Add root directory to sys.path so modules like backend.app can be imported
-root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-if root_dir not in sys.path:
-    sys.path.insert(0, root_dir)
+# Ensure root directory and current directory are in sys.path for Vercel lambdas
+file_dir = os.path.dirname(os.path.abspath(__file__))
+root_dir = os.path.dirname(file_dir)
+cwd = os.getcwd()
 
-from backend.app.main import app
+for p in [root_dir, cwd, file_dir]:
+    if p and p not in sys.path:
+        sys.path.insert(0, p)
 
-# Expose app for Vercel serverless ASGI handler
-app = app
+try:
+    from backend.app.main import app
+    handler = app
+except Exception as e:
+    print(f"[VERCEL IMPORT ERROR] Failed to import backend.app.main: {e}")
+    traceback.print_exc()
+    raise e
