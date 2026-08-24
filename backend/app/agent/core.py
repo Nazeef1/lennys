@@ -12,14 +12,34 @@ from backend.app.db.models import SessionModel, MessageModel, ArtifactModel
 logger = logging.getLogger(__name__)
 
 class LennyGrowthAgent:
-    def __init__(self):
-        pass
+    """
+    Agentic Orchestrator adhering to Anthropic Agent SDK tool routing principles:
+    - Intent Classifier & Routing
+    - Structured Tools (RAG Search, Ship 30 Skill, Artifact Generator)
+    - Strict Out-of-Scope Material Refusal
+    - Resilience Fallback Cascade
+    """
+
+    TOOLS = [
+        {
+            "name": "rag_search_tool",
+            "description": "Searches Lenny's Podcast and Newsletter transcript knowledge base for grounded product and growth insights."
+        },
+        {
+            "name": "ship30_essay_tool",
+            "description": "Generates a 1,250-word Ship 30 for 30 style masterclass essay with hook, narrative progression, and takeaways."
+        },
+        {
+            "name": "artifact_generator_tool",
+            "description": "Creates complete, sandboxed HTML/CSS growth dashboards, calculators, or Markdown reports."
+        }
+    ]
 
     def detect_intent(self, user_message: str) -> str:
         msg_lower = user_message.lower()
-        if any(term in msg_lower for term in ["ship 30", "ship30", "essay", "1250 word", "1,250 word", "write a post", "newsletter post"]):
+        if any(term in msg_lower for term in ["ship 30", "ship30", "essay", "1250 word", "1,250 word", "write a post", "newsletter post", "masterclass"]):
             return "ship30"
-        elif any(term in msg_lower for term in ["html", "artifact", "dashboard", "component", "ui snippet", "interactive", "table artifact"]):
+        elif any(term in msg_lower for term in ["html", "artifact", "dashboard", "component", "ui snippet", "interactive", "calculator", "table artifact"]):
             return "artifact"
         else:
             return "qa"
@@ -47,7 +67,7 @@ class LennyGrowthAgent:
         db.add(user_msg_db)
         db.commit()
 
-        # RAG Search
+        # Execute RAG Search Tool
         retrieved_chunks: List[ChunkResult] = rag_engine.search(user_message, top_k=5)
         citations = []
         for chunk in retrieved_chunks:
@@ -58,17 +78,52 @@ class LennyGrowthAgent:
                 "date": chunk.date,
                 "post_url": chunk.post_url,
                 "score": round(chunk.score, 3),
-                "excerpt": chunk.content[:200] + "..."
+                "excerpt": chunk.content[:220] + "..."
             })
 
-        # Detect intent
         intent = self.detect_intent(user_message)
-        logger.info(f"Session {session_id}: Detected intent '{intent}' for message: {user_message[:50]}")
+        logger.info(f"Agent Session {session_id}: Routing to Tool '{intent}' (Citations found: {len(citations)})")
+
+        # Check for Out-of-Scope / Unsupported Material (Requirement 4.1)
+        is_out_of_scope = False
+        off_topic_terms = ["weather", "recipe", "capital of", "plumbing", "sports score", "movie review", "who won"]
+        has_off_topic = any(term in user_message.lower() for term in off_topic_terms)
+        top_score = citations[0]["score"] if citations else 0.0
+
+        if intent == "qa" and (has_off_topic or top_score < 0.05 or not citations):
+            is_out_of_scope = True
 
         target_provider_name = provider_name or session_obj.active_provider or provider_registry.active_provider_name
         provider: BaseLLMProvider = provider_registry.get_provider(target_provider_name)
 
-        # Build prompt & system instructions based on intent
+        if is_out_of_scope:
+            refusal_text = (
+                f"I am **The Lenny Growth Assistant**, strictly grounded in Lenny's Podcast and Newsletter transcript repository.\n\n"
+                f"The available material does not contain relevant information regarding **\"{user_message}\"**.\n\n"
+                f"Please ask a question related to product strategy, growth loops, retention, B2B PLG, user research, or PM leadership!"
+            )
+            asst_msg_db = MessageModel(
+                session_id=session_id,
+                role="assistant",
+                content=refusal_text,
+                citations=[],
+                artifact_id=None
+            )
+            db.add(asst_msg_db)
+            db.commit()
+
+            return {
+                "session_id": session_id,
+                "message_id": asst_msg_db.id,
+                "role": "assistant",
+                "content": refusal_text,
+                "intent": "out_of_scope",
+                "citations": [],
+                "artifact": None,
+                "provider_used": provider.name
+            }
+
+        # Build System Prompt & Prompt based on Tool Intent
         if intent == "ship30":
             system_prompt = Ship30For30Skill.SYSTEM_INSTRUCTIONS
             prompt = Ship30For30Skill.build_prompt(user_message, retrieved_chunks)
@@ -91,13 +146,13 @@ You are "The Lenny Growth Assistant", an elite product management and growth adv
 RULES:
 1. Answer the user's question clearly, thoroughly, and tactically using the provided transcript context.
 2. Explicitly attribute key frameworks, quotes, and insights to the guest/author.
-3. If the context does not contain relevant information to answer fully, acknowledge what is known from Lenny's transcripts and clarify limitations.
+3. If the available transcript material does NOT support an answer, acknowledge what is known from Lenny's transcripts and clearly state the limitations.
 4. Structure responses with clear markdown headings, bullet points, and actionable executive summaries.
 """
             context_text = "\n\n".join([f"[{i+1}] Guest: {c.guest} | Episode: {c.title}\n{c.content}" for i, c in enumerate(retrieved_chunks)])
             prompt = f"Question: {user_message}\n\nTranscript Knowledge Base:\n{context_text}"
 
-        # Get conversation history for session
+        # Fetch conversation history for session
         past_msgs = db.query(MessageModel).filter(MessageModel.session_id == session_id).order_by(MessageModel.created_at.asc()).all()
         history = []
         for pm in past_msgs[:-1]:  # exclude current user message

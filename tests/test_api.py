@@ -15,14 +15,12 @@ def test_health_endpoint():
     assert "active_provider" in data
 
 def test_create_and_list_sessions():
-    # Create session
     create_res = client.post("/api/sessions", json={"title": "Test Growth Consultation"})
     assert create_res.status_code == 200
     session = create_res.json()
     assert "id" in session
     assert session["title"] == "Test Growth Consultation"
 
-    # List sessions
     list_res = client.get("/api/sessions")
     assert list_res.status_code == 200
     sessions = list_res.json()
@@ -42,3 +40,19 @@ def test_select_model():
     assert res.status_code == 200
     data = res.json()
     assert data["active_provider"] == "fallback"
+
+def test_out_of_scope_query():
+    # Create session
+    create_res = client.post("/api/sessions", json={"title": "Off Topic Test"})
+    session_id = create_res.json()["id"]
+
+    # Send off-topic question
+    chat_res = client.post("/api/chat", json={
+        "session_id": session_id,
+        "message": "What is the weather and recipe for pizza in Paris?",
+        "provider": "fallback"
+    })
+    assert chat_res.status_code == 200
+    res_data = chat_res.json()
+    assert res_data["intent"] == "out_of_scope"
+    assert "strictly grounded in Lenny's Podcast" in res_data["content"]
