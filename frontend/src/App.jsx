@@ -8,7 +8,7 @@ export default function App() {
   const [sessions, setSessions] = useState([]);
   const [activeSessionId, setActiveSessionId] = useState(null);
   const [messages, setMessages] = useState([]);
-  const [activeProvider, setActiveProvider] = useState('ollama');
+  const [activeProvider, setActiveProvider] = useState('fallback');
   const [healthInfo, setHealthInfo] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [activeArtifact, setActiveArtifact] = useState(null);
@@ -50,9 +50,15 @@ export default function App() {
         } else if (data.length === 0) {
           createNewSession();
         }
+      } else {
+        // Fallback session if backend API fails
+        const fallbackId = 'session_' + Date.now();
+        setActiveSessionId(fallbackId);
       }
     } catch (err) {
       console.error('Failed to fetch sessions:', err);
+      const fallbackId = 'session_' + Date.now();
+      setActiveSessionId(fallbackId);
     }
   };
 
@@ -69,10 +75,16 @@ export default function App() {
         setActiveSessionId(newSession.id);
         setMessages([]);
         setActiveArtifact(null);
+        return newSession.id;
       }
     } catch (err) {
       console.error('Failed to create session:', err);
     }
+    const fallbackId = 'session_' + Date.now();
+    setActiveSessionId(fallbackId);
+    setMessages([]);
+    setActiveArtifact(null);
+    return fallbackId;
   };
 
   const fetchMessages = async (sessionId) => {
@@ -90,8 +102,8 @@ export default function App() {
   const handleSendMessage = async (text) => {
     let currentSessionId = activeSessionId;
     if (!currentSessionId) {
-      await createNewSession();
-      return;
+      currentSessionId = 'session_' + Date.now();
+      setActiveSessionId(currentSessionId);
     }
 
     // Add user message optimistic update
@@ -118,7 +130,7 @@ export default function App() {
       if (res.ok) {
         const data = await res.json();
         const asstMsg = {
-          id: data.message_id,
+          id: data.message_id || Date.now().toString(),
           role: 'assistant',
           content: data.content,
           citations: data.citations || [],
@@ -129,13 +141,26 @@ export default function App() {
         if (data.artifact) {
           setActiveArtifact(data.artifact);
         }
-        fetchSessions(); // refresh session list titles
+        fetchSessions();
       } else {
-        const errData = await res.json();
-        alert(`Chat Error: ${errData.detail || 'Failed to process prompt'}`);
+        const errData = await res.json().catch(() => ({ detail: 'Server Error' }));
+        const fallbackMsg = {
+          id: Date.now().toString(),
+          role: 'assistant',
+          content: `⚠️ API Error (${res.status}): ${errData.detail || 'Could not connect to backend serverless function.'}`,
+          created_at: new Date().toISOString()
+        };
+        setMessages((prev) => [...prev, fallbackMsg]);
       }
     } catch (err) {
       console.error('Chat API Error:', err);
+      const fallbackMsg = {
+        id: Date.now().toString(),
+        role: 'assistant',
+        content: `⚠️ Network Error: ${err.message}. Please check API connection.`,
+        created_at: new Date().toISOString()
+      };
+      setMessages((prev) => [...prev, fallbackMsg]);
     } finally {
       setIsLoading(false);
     }

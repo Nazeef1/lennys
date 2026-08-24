@@ -130,6 +130,9 @@ class RAGEngine:
         return doc_chunks
 
     def build_index(self) -> int:
+        if self.is_indexed and self.chunks and self.tfidf_matrix is not None:
+            return len(self.chunks)
+
         if not os.path.exists(self.transcript_dir):
             os.makedirs(self.transcript_dir, exist_ok=True)
             logger.warning(f"Transcript directory {self.transcript_dir} was empty.")
