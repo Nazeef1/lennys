@@ -12,9 +12,11 @@ for p in [root_dir, cwd, file_dir]:
         sys.path.insert(0, p)
 
 try:
-    from backend.app.main import app
-    handler = app
+    from backend.app.main import app as _app
+    app = _app
+    handler = _app
 except Exception as e:
     print(f"[VERCEL IMPORT ERROR] Failed to import backend.app.main: {e}")
     traceback.print_exc()
     raise e
+
