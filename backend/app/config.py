@@ -14,6 +14,13 @@ class Settings(BaseSettings):
     
     # Database (Use /tmp for Vercel/serverless writable SQLite)
     DATABASE_URL: str = os.getenv("DATABASE_URL", "sqlite:////tmp/lenny_assistant.db" if os.getenv("VERCEL") else "sqlite:///./lenny_assistant.db")
+
+    @property
+    def sanitized_database_url(self) -> str:
+        url = self.DATABASE_URL
+        if url and url.startswith("postgres://"):
+            url = url.replace("postgres://", "postgresql://", 1)
+        return url
     
     # Paths
     BASE_DIR: str = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))

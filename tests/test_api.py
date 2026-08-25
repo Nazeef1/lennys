@@ -56,3 +56,9 @@ def test_out_of_scope_query():
     res_data = chat_res.json()
     assert res_data["intent"] == "out_of_scope"
     assert "strictly grounded in Lenny's Podcast" in res_data["content"]
+
+def test_database_url_sanitization():
+    from backend.app.config import Settings
+    s = Settings(DATABASE_URL="postgres://user:pass@localhost/db")
+    assert s.sanitized_database_url == "postgresql://user:pass@localhost/db"
+
