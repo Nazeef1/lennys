@@ -3,8 +3,7 @@ import logging
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, HTMLResponse
-from fastapi.staticfiles import StaticFiles
+from fastapi.responses import JSONResponse
 
 from backend.app.config import settings
 from backend.app.db.database import init_db
@@ -14,7 +13,7 @@ from backend.app.api.routes import router as api_router
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s"
+    format="%(asctime)s [%(levelname)s] %(message)s"
 )
 logger = logging.getLogger("lenny_assistant")
 
@@ -55,50 +54,9 @@ async def global_exception_handler(request: Request, exc: Exception):
         content={"detail": "An unexpected server error occurred. The resilience engine has logged details."}
     )
 
-# Vercel Path Normalization Middleware
-@app.middleware("http")
-async def fix_vercel_path_middleware(request: Request, call_next):
-    path = request.scope.get("path", "")
-    if "/api/index.py" in path:
-        new_path = path.replace("/api/index.py", "")
-        request.scope["path"] = new_path if new_path != "" else "/"
-    return await call_next(request)
-
-
-# Mount static frontend assets if built
-dist_dir = os.path.join(settings.BASE_DIR, "frontend", "dist")
-assets_dir = os.path.join(dist_dir, "assets")
-
-if os.path.exists(assets_dir):
-    app.mount("/assets", StaticFiles(directory=assets_dir), name="assets")
-
 # Include Router with and without /api prefix for Vercel rewrite compatibility
 app.include_router(api_router, prefix=settings.API_V1_STR)
 app.include_router(api_router)
-
-# Serve SPA Frontend index.html for Root Route
-@app.get("/")
-@app.get("/index.html")
-def serve_index():
-    dist_index = os.path.join(dist_dir, "index.html")
-    if os.path.exists(dist_index):
-        try:
-            with open(dist_index, "r", encoding="utf-8") as f:
-                return HTMLResponse(content=f.read())
-        except Exception:
-            pass
-    return HTMLResponse(content="""
-    <!DOCTYPE html>
-    <html lang="en">
-      <head><title>The Lenny Growth Assistant</title></head>
-      <body>
-        <div id="root">
-          <h1>The Lenny Growth Assistant</h1>
-          <p>Backend API is active. <a href="/docs">View API Docs</a></p>
-        </div>
-      </body>
-    </html>
-    """)
 
 if __name__ == "__main__":
     import uvicorn
