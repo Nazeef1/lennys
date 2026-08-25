@@ -18,12 +18,10 @@ class Settings(BaseSettings):
     @property
     def sanitized_database_url(self) -> str:
         url = self.DATABASE_URL
-        if url:
-            if url.startswith("postgres://"):
-                url = url.replace("postgres://", "postgresql+pg8000://", 1)
-            elif url.startswith("postgresql://") and "+pg8000" not in url and "+psycopg2" not in url:
-                url = url.replace("postgresql://", "postgresql+pg8000://", 1)
+        if url and url.startswith("postgres://"):
+            url = url.replace("postgres://", "postgresql://", 1)
         return url
+
 
     
     # Paths
