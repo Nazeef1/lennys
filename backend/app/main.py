@@ -55,11 +55,24 @@ async def global_exception_handler(request: Request, exc: Exception):
     )
 
 from fastapi.responses import JSONResponse, HTMLResponse
+from fastapi.staticfiles import StaticFiles
 
-# Root Route
-@app.get("/")
-def read_root():
-    dist_index = os.path.join(settings.BASE_DIR, "frontend", "dist", "index.html")
+# Mount static frontend assets if built
+dist_dir = os.path.join(settings.BASE_DIR, "frontend", "dist")
+assets_dir = os.path.join(dist_dir, "assets")
+
+if os.path.exists(assets_dir):
+    app.mount("/assets", StaticFiles(directory=assets_dir), name="assets")
+
+# Include Router
+app.include_router(api_router, prefix=settings.API_V1_STR)
+
+# Root and SPA Fallback Route
+@app.get("/{full_path:path}")
+def serve_spa(full_path: str):
+    if full_path.startswith("api/"):
+        return JSONResponse(status_code=404, content={"detail": "Not Found"})
+    dist_index = os.path.join(dist_dir, "index.html")
     if os.path.exists(dist_index):
         try:
             with open(dist_index, "r", encoding="utf-8") as f:
@@ -72,8 +85,6 @@ def read_root():
         "api_health": "/api/health"
     }
 
-# Include Router
-app.include_router(api_router, prefix=settings.API_V1_STR)
 
 
 if __name__ == "__main__":
