@@ -54,9 +54,40 @@ async def global_exception_handler(request: Request, exc: Exception):
         content={"detail": "An unexpected server error occurred. The resilience engine has logged details."}
     )
 
+from fastapi.responses import JSONResponse, HTMLResponse
+from fastapi.staticfiles import StaticFiles
+
+# Vercel Path Normalization Middleware
+@app.middleware("http")
+async def fix_vercel_path_middleware(request: Request, call_next):
+    path = request.scope.get("path", "")
+    if "/api/index.py" in path:
+        new_path = path.replace("/api/index.py", "/api")
+        if not new_path.startswith("/api"):
+            new_path = "/api" + new_path
+        request.scope["path"] = new_path
+    return await call_next(request)
+
+# Root Endpoint Fallback
+@app.get("/")
+def read_root():
+    dist_index = os.path.join(settings.BASE_DIR, "frontend", "dist", "index.html")
+    if os.path.exists(dist_index):
+        try:
+            with open(dist_index, "r", encoding="utf-8") as f:
+                return HTMLResponse(content=f.read())
+        except Exception:
+            pass
+    return {
+        "name": settings.PROJECT_NAME,
+        "status": "online",
+        "health": "/api/health"
+    }
+
 # Include Router with and without /api prefix for Vercel rewrite compatibility
 app.include_router(api_router, prefix=settings.API_V1_STR)
 app.include_router(api_router)
+
 
 
 
