@@ -54,8 +54,27 @@ async def global_exception_handler(request: Request, exc: Exception):
         content={"detail": "An unexpected server error occurred. The resilience engine has logged details."}
     )
 
+from fastapi.responses import JSONResponse, HTMLResponse
+
+# Root Route
+@app.get("/")
+def read_root():
+    dist_index = os.path.join(settings.BASE_DIR, "frontend", "dist", "index.html")
+    if os.path.exists(dist_index):
+        try:
+            with open(dist_index, "r", encoding="utf-8") as f:
+                return HTMLResponse(content=f.read())
+        except Exception:
+            pass
+    return {
+        "name": settings.PROJECT_NAME,
+        "status": "online",
+        "api_health": "/api/health"
+    }
+
 # Include Router
 app.include_router(api_router, prefix=settings.API_V1_STR)
+
 
 if __name__ == "__main__":
     import uvicorn
