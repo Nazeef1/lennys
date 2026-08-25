@@ -54,36 +54,21 @@ async def global_exception_handler(request: Request, exc: Exception):
         content={"detail": "An unexpected server error occurred. The resilience engine has logged details."}
     )
 
-from fastapi.responses import JSONResponse, HTMLResponse
-from fastapi.staticfiles import StaticFiles
+from fastapi.responses import JSONResponse
 
-# Mount static frontend assets if built
-dist_dir = os.path.join(settings.BASE_DIR, "frontend", "dist")
-assets_dir = os.path.join(dist_dir, "assets")
-
-if os.path.exists(assets_dir):
-    app.mount("/assets", StaticFiles(directory=assets_dir), name="assets")
+# Root API Status Route
+@app.get("/")
+@app.get("/api")
+def read_root():
+    return {
+        "name": settings.PROJECT_NAME,
+        "status": "online",
+        "health": "/api/health"
+    }
 
 # Include Router
 app.include_router(api_router, prefix=settings.API_V1_STR)
 
-# Root and SPA Fallback Route
-@app.get("/{full_path:path}")
-def serve_spa(full_path: str):
-    if full_path.startswith("api/"):
-        return JSONResponse(status_code=404, content={"detail": "Not Found"})
-    dist_index = os.path.join(dist_dir, "index.html")
-    if os.path.exists(dist_index):
-        try:
-            with open(dist_index, "r", encoding="utf-8") as f:
-                return HTMLResponse(content=f.read())
-        except Exception:
-            pass
-    return {
-        "name": settings.PROJECT_NAME,
-        "status": "online",
-        "api_health": "/api/health"
-    }
 
 
 
