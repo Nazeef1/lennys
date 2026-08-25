@@ -23,13 +23,15 @@ def _create_db_engine():
         return create_engine(db_url, **engine_kwargs)
     except Exception as e:
         logger.error(f"[DB] Primary database engine creation failed for '{db_url}': {e}. Falling back to SQLite.")
-        fallback_url = "sqlite:////tmp/lenny_assistant.db" if os.getenv("VERCEL") else "sqlite:///./lenny_assistant.db"
-        if "/tmp/" in fallback_url:
-            try:
+        try:
+            fallback_url = "sqlite:////tmp/lenny_assistant.db" if os.getenv("VERCEL") else "sqlite:///./lenny_assistant.db"
+            if "/tmp/" in fallback_url:
                 os.makedirs("/tmp", exist_ok=True)
-            except Exception:
-                pass
-        return create_engine(fallback_url, connect_args={"check_same_thread": False})
+            return create_engine(fallback_url, connect_args={"check_same_thread": False})
+        except Exception as e2:
+            logger.error(f"[DB] Fallback SQLite file engine failed: {e2}. Falling back to in-memory SQLite.")
+            return create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False})
+
 
 engine = _create_db_engine()
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)

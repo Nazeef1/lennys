@@ -60,5 +60,8 @@ def test_out_of_scope_query():
 def test_database_url_sanitization():
     from backend.app.config import Settings
     s = Settings(DATABASE_URL="postgres://user:pass@localhost/db")
-    assert s.sanitized_database_url == "postgresql://user:pass@localhost/db"
+    assert s.sanitized_database_url == "postgresql+pg8000://user:pass@localhost/db"
+    s2 = Settings(DATABASE_URL="postgresql://user:pass@localhost/db")
+    assert s2.sanitized_database_url == "postgresql+pg8000://user:pass@localhost/db"
+
 
