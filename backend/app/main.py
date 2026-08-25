@@ -54,20 +54,10 @@ async def global_exception_handler(request: Request, exc: Exception):
         content={"detail": "An unexpected server error occurred. The resilience engine has logged details."}
     )
 
-from fastapi.responses import JSONResponse
-
-# Root API Status Route
-@app.get("/")
-@app.get("/api")
-def read_root():
-    return {
-        "name": settings.PROJECT_NAME,
-        "status": "online",
-        "health": "/api/health"
-    }
-
-# Include Router
+# Include Router with and without /api prefix for Vercel rewrite compatibility
 app.include_router(api_router, prefix=settings.API_V1_STR)
+app.include_router(api_router)
+
 
 
 
