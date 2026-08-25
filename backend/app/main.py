@@ -61,10 +61,9 @@ async def fix_vercel_path_middleware(request: Request, call_next):
     path = request.scope.get("path", "")
     if "/api/index.py" in path:
         new_path = path.replace("/api/index.py", "")
-        if not new_path.startswith("/api") and new_path != "":
-            new_path = "/api" + new_path
-        request.scope["path"] = new_path or "/"
+        request.scope["path"] = new_path if new_path != "" else "/"
     return await call_next(request)
+
 
 # Mount static frontend assets if built
 dist_dir = os.path.join(settings.BASE_DIR, "frontend", "dist")
